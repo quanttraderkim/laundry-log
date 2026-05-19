@@ -55,6 +55,13 @@ type Status = {
   dot: string;
 };
 
+type SortMode =
+  | "careFirst"
+  | "recentWear"
+  | "brand"
+  | "category"
+  | "wearCount";
+
 const todayText = "2026-05-19";
 const today = new Date(`${todayText}T09:00:00+09:00`);
 const legacyItemsStorageKey = "washlog-items-v1";
@@ -70,6 +77,12 @@ const conditionMeta: Record<
   odor: { label: "냄새", icon: Wind },
   stain: { label: "얼룩", icon: TriangleAlert },
 };
+
+const quickLogSuggestions = [
+  "나이키 러닝 반팔 M 입었어",
+  "데님 팬츠 입고 땀 났어",
+  "유니클로 셔츠 세탁했어",
+];
 
 const brandLogoMap: Record<string, { label: string; slug: string }> = {
   nike: { label: "Nike", slug: "nike" },
@@ -314,12 +327,52 @@ function status(label: Status["label"], reason: string, color: string): Status {
   return { label, reason, ...tones[color as keyof typeof tones] };
 }
 
+function designToneFor(status: Status) {
+  if (status.label === "세탁 권장") {
+    return {
+      chip: "bg-[#F1DDD2] text-[#B55842]",
+      dot: "bg-[#B55842]",
+      metric: "text-[#B55842]",
+      surface: "bg-[#F1DDD2]",
+      border: "border-[#EAD0C4]",
+    };
+  }
+
+  if (status.label === "곧 세탁") {
+    return {
+      chip: "bg-[#F2E6CC] text-[#B8853A]",
+      dot: "bg-[#B8853A]",
+      metric: "text-[#B8853A]",
+      surface: "bg-[#F2E6CC]",
+      border: "border-[#E7D6B8]",
+    };
+  }
+
+  if (status.label === "통풍 권장") {
+    return {
+      chip: "bg-[#DAE4EA] text-[#5E7E92]",
+      dot: "bg-[#5E7E92]",
+      metric: "text-[#5E7E92]",
+      surface: "bg-[#DAE4EA]",
+      border: "border-[#CBD9E0]",
+    };
+  }
+
+  return {
+    chip: "bg-[#E4ECE3] text-[#46685C]",
+    dot: "bg-[#46685C]",
+    metric: "text-[#46685C]",
+    surface: "bg-[#E4ECE3]",
+    border: "border-[#D2DFD2]",
+  };
+}
+
 function profileFor(category: string, material: string): CareProfile {
   if (category === "운동복") {
     return "active_synthetic";
   }
 
-  if (category === "아우터") {
+  if (category === "아우터" || category === "코트") {
     return "seasonal_outer";
   }
 
@@ -344,6 +397,10 @@ function profileFor(category: string, material: string): CareProfile {
 
 function cleanText(value?: string) {
   return (value ?? "").trim();
+}
+
+function compareText(first: string, second: string) {
+  return first.localeCompare(second, "ko-KR", { numeric: true });
 }
 
 function normalizeText(value?: string) {
@@ -464,10 +521,14 @@ function categoryVisualFor(item: ClothingItem) {
     };
   }
 
-  if (item.category === "아우터" || item.careProfile === "seasonal_outer") {
+  if (
+    item.category === "아우터" ||
+    item.category === "코트" ||
+    item.careProfile === "seasonal_outer"
+  ) {
     return {
       icon: Umbrella,
-      label: "아우터",
+      label: item.category === "코트" ? "코트" : "아우터",
       surface: "border-zinc-200 bg-zinc-100 text-zinc-800",
       iconBox: "bg-white text-zinc-700",
     };
@@ -491,10 +552,14 @@ function categoryVisualFor(item: ClothingItem) {
     };
   }
 
-  if (item.category === "상의" || item.careProfile === "cotton_top") {
+  if (
+    item.category === "상의" ||
+    item.category === "셔츠" ||
+    item.careProfile === "cotton_top"
+  ) {
     return {
       icon: Shirt,
-      label: "상의",
+      label: item.category === "셔츠" ? "셔츠" : "상의",
       surface: "border-emerald-100 bg-white text-zinc-800",
       iconBox: "bg-emerald-50 text-emerald-700",
     };
@@ -656,6 +721,63 @@ function actionFromText(text: string) {
   return null;
 }
 
+function optionValues(items: ClothingItem[], field: "brand" | "category") {
+  return Array.from(
+    new Set(items.map((item) => cleanText(item[field])).filter(Boolean)),
+  ).sort(compareText);
+}
+
+function statusPriority(item: ClothingItem) {
+  const priority: Record<Status["label"], number> = {
+    "세탁 권장": 0,
+    "곧 세탁": 1,
+    "통풍 권장": 2,
+    깨끗함: 3,
+  };
+
+  return priority[statusFor(item).label];
+}
+
+function sortedItems(items: ClothingItem[], sortMode: SortMode) {
+  return [...items].sort((first, second) => {
+    if (sortMode === "recentWear") {
+      return (
+        compareText(second.wornAt ?? "", first.wornAt ?? "") ||
+        compareText(itemTitle(first), itemTitle(second))
+      );
+    }
+
+    if (sortMode === "brand") {
+      return (
+        compareText(first.brand, second.brand) ||
+        compareText(first.name, second.name) ||
+        compareText(first.size, second.size)
+      );
+    }
+
+    if (sortMode === "category") {
+      return (
+        compareText(first.category, second.category) ||
+        compareText(first.brand, second.brand) ||
+        compareText(first.name, second.name)
+      );
+    }
+
+    if (sortMode === "wearCount") {
+      return (
+        second.wearCount - first.wearCount ||
+        compareText(itemTitle(first), itemTitle(second))
+      );
+    }
+
+    return (
+      statusPriority(first) - statusPriority(second) ||
+      compareText(first.washedAt, second.washedAt) ||
+      compareText(itemTitle(first), itemTitle(second))
+    );
+  });
+}
+
 export default function Home() {
   const [items, setItems] = useState<ClothingItem[]>(() => {
     if (typeof window === "undefined") {
@@ -665,6 +787,9 @@ export default function Home() {
     return loadStoredItems();
   });
   const [filter, setFilter] = useState<"all" | "needsCare" | "fresh">("all");
+  const [brandFilter, setBrandFilter] = useState("all");
+  const [categoryFilter, setCategoryFilter] = useState("all");
+  const [sortMode, setSortMode] = useState<SortMode>("careFirst");
   const [newName, setNewName] = useState("");
   const [newBrand, setNewBrand] = useState("");
   const [newColor, setNewColor] = useState("");
@@ -675,6 +800,7 @@ export default function Home() {
   const [quickLog, setQuickLog] = useState("");
   const [quickCandidates, setQuickCandidates] = useState<ClothingItem[]>([]);
   const [pendingQuickText, setPendingQuickText] = useState("");
+  const [adding, setAdding] = useState(false);
   const [feedback, setFeedback] = useState(
     "예: 오늘 나이키 러닝 반팔 검정 M 입었어",
   );
@@ -694,10 +820,23 @@ export default function Home() {
     window.localStorage.setItem(countStorageKey, String(todayLogCount));
   }, [items, todayLogCount]);
 
-  const filteredItems = useMemo(() => {
-    return items.filter((item) => {
-      const currentStatus = statusFor(item).label;
+  const brandOptions = useMemo(() => optionValues(items, "brand"), [items]);
+  const categoryOptions = useMemo(() => optionValues(items, "category"), [items]);
 
+  const filteredItems = useMemo(() => {
+    const matchedItems = items.filter((item) => {
+      if (brandFilter !== "all" && cleanText(item.brand) !== brandFilter) {
+        return false;
+      }
+
+      if (
+        categoryFilter !== "all" &&
+        cleanText(item.category) !== categoryFilter
+      ) {
+        return false;
+      }
+
+      const currentStatus = statusFor(item).label;
       if (filter === "needsCare") {
         return currentStatus !== "깨끗함";
       }
@@ -708,11 +847,14 @@ export default function Home() {
 
       return true;
     });
-  }, [filter, items]);
+
+    return sortedItems(matchedItems, sortMode);
+  }, [brandFilter, categoryFilter, filter, items, sortMode]);
 
   const needsCareCount = items.filter(
     (item) => statusFor(item).label !== "깨끗함",
   ).length;
+  const freshCount = items.length - needsCareCount;
 
   function markWashed(id: number, source = "버튼") {
     setItems((current) =>
@@ -850,6 +992,7 @@ export default function Home() {
     setNewColor("");
     setNewFeature("");
     setNewSize("");
+    setAdding(false);
     setFeedback(`${itemDisplayName(nextItem)} 등록 완료`);
   }
 
@@ -878,50 +1021,90 @@ export default function Home() {
   }
 
   return (
-    <main className="min-h-screen bg-[#f6f7f5] text-[#17211c]">
-      <section className="mx-auto flex min-h-screen w-full max-w-md flex-col px-5 py-5">
-        <header className="flex items-center justify-between pb-5">
-          <div>
-            <p className="text-sm font-medium text-emerald-700">WashLog</p>
-            <h1 className="mt-1 text-[28px] font-semibold leading-9">
-              소재별 세탁 타이밍
-            </h1>
+    <main className="min-h-screen bg-[#EEEAE0] text-[#1B201D] [background:radial-gradient(80%_45%_at_85%_0%,#F8F5ED_0%,transparent_65%),radial-gradient(80%_50%_at_0%_100%,#E2DCCD_0%,transparent_62%),#EEEAE0]">
+      <section className="mx-auto flex min-h-screen w-full max-w-md flex-col px-5 pb-24 pt-7">
+        <header>
+          <div className="inline-flex items-center gap-2 rounded-full bg-[#D7E0D8] px-3 py-1.5 text-[12px] font-semibold text-[#46685C]">
+            <span className="h-1.5 w-1.5 rounded-full bg-[#46685C]" />
+            2026 · 5월 19일 화
           </div>
-          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[#17211c] text-white">
-            <WashingMachine aria-hidden="true" size={24} />
+
+          <div className="mt-4 flex items-center gap-3">
+            <div className="relative flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-[18px] bg-[#1B201D] text-white shadow-[0_14px_30px_-14px_rgba(27,32,29,0.55)]">
+              <WashingMachine aria-hidden="true" size={28} strokeWidth={1.8} />
+              <div className="pointer-events-none absolute inset-x-1 top-1 h-6 rounded-t-2xl bg-white/10" />
+            </div>
+            <div className="min-w-0">
+              <h1 className="text-[34px] font-extrabold leading-none text-[#1B201D]">
+                Wash<span className="text-[#46685C]">Log</span>
+              </h1>
+              <p className="mt-1 text-[11px] font-semibold uppercase text-[#5C615D]">
+                Care · Wear · Wash
+              </p>
+            </div>
           </div>
+
+          <p className="mt-4 text-[14px] font-medium leading-6 text-[#5C615D]">
+            <span className="font-bold text-[#B55842]">{needsCareCount}벌</span>이
+            관리 필요 ·{" "}
+            <span className="font-bold text-[#46685C]">{freshCount}벌</span>은
+            바로 착용 가능
+          </p>
         </header>
 
-        <section className="grid grid-cols-3 gap-2" aria-label="오늘 상태 요약">
-          <div className="rounded-2xl border border-emerald-100 bg-white p-3">
-            <Sparkles aria-hidden="true" className="text-emerald-600" size={18} />
-            <p className="mt-3 text-2xl font-semibold">{items.length}</p>
-            <p className="text-xs font-medium text-zinc-500">등록한 옷</p>
-          </div>
-          <div className="rounded-2xl border border-amber-100 bg-white p-3">
-            <Clock3 aria-hidden="true" className="text-amber-600" size={18} />
-            <p className="mt-3 text-2xl font-semibold">{needsCareCount}</p>
-            <p className="text-xs font-medium text-zinc-500">관리 필요</p>
-          </div>
-          <div className="rounded-2xl border border-rose-100 bg-white p-3">
-            <CalendarDays aria-hidden="true" className="text-rose-600" size={18} />
-            <p className="mt-3 text-2xl font-semibold">{todayLogCount}</p>
-            <p className="text-xs font-medium text-zinc-500">오늘 기록</p>
-          </div>
+        <section
+          className="mt-6 grid grid-cols-3 overflow-hidden rounded-[22px] border border-[#E4DFD2] bg-white"
+          aria-label="오늘 상태 요약"
+        >
+          {[
+            { label: "등록한 옷", value: items.length, icon: Sparkles, tone: "text-[#1B201D]" },
+            { label: "관리 필요", value: needsCareCount, icon: Clock3, tone: "text-[#B55842]" },
+            { label: "오늘 기록", value: todayLogCount, icon: CalendarDays, tone: "text-[#46685C]" },
+          ].map((stat, index) => {
+            const StatIcon = stat.icon;
+
+            return (
+              <div
+                key={stat.label}
+                className={`px-4 py-4 ${
+                  index === 0 ? "" : "border-l border-[#E4DFD2]"
+                }`}
+              >
+                <StatIcon aria-hidden="true" className={stat.tone} size={17} />
+                <p
+                  className={`mt-3 flex items-baseline gap-1 text-[30px] font-bold leading-none ${stat.tone}`}
+                >
+                  {stat.value}
+                  <span className="text-[12px] font-medium text-[#9A9A92]">벌</span>
+                </p>
+                <p className="mt-1 text-[12px] font-medium text-[#5C615D]">
+                  {stat.label}
+                </p>
+              </div>
+            );
+          })}
         </section>
 
         <form
           onSubmit={submitQuickLog}
-          className="mt-5 rounded-2xl border border-zinc-200 bg-white p-3"
+          className="mt-3 rounded-[22px] border border-[#E4DFD2] bg-white p-3"
         >
-          <label className="text-sm font-semibold" htmlFor="quick-log">
-            빠른 기록
-          </label>
-          <div className="mt-3 grid grid-cols-[minmax(0,1fr)_44px] gap-2">
+          <div className="flex items-center justify-between gap-3 px-1 pb-2">
+            <label
+              className="shrink-0 text-[13px] font-semibold text-[#5C615D]"
+              htmlFor="quick-log"
+            >
+              한 문장으로 기록
+            </label>
+            <p className="min-w-0 truncate text-right text-[11px] font-medium text-[#9A9A92]">
+              {feedback}
+            </p>
+          </div>
+          <div className="grid grid-cols-[minmax(0,1fr)_44px] gap-2">
             <input
               id="quick-log"
-              className="h-11 min-w-0 rounded-xl border border-zinc-200 px-3 text-sm outline-none transition focus:border-emerald-500"
-              placeholder="오늘 나이키 러닝 반팔 검정 M 입었어"
+              className="h-11 min-w-0 rounded-[14px] border border-[#E4DFD2] bg-[#FAF6EE] px-3 text-[14px] font-medium text-[#1B201D] outline-none transition placeholder:text-[#9A9A92] focus:border-[#46685C]"
+              placeholder="오늘 나이키 러닝 반팔 M 입었어"
               value={quickLog}
               onChange={(event) => {
                 setQuickLog(event.target.value);
@@ -931,15 +1114,30 @@ export default function Home() {
             />
             <button
               type="submit"
-              className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#17211c] text-white transition hover:bg-emerald-800"
+              className="flex h-11 w-11 items-center justify-center rounded-[14px] bg-[#1B201D] text-white transition active:scale-95"
               aria-label="빠른 기록 추가"
             >
               <MessageCircle aria-hidden="true" size={19} />
             </button>
           </div>
-          <p className="mt-2 text-xs font-medium text-zinc-500">{feedback}</p>
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {quickLogSuggestions.map((suggestion) => (
+              <button
+                key={suggestion}
+                type="button"
+                onClick={() => {
+                  setQuickLog(suggestion);
+                  setQuickCandidates([]);
+                  setPendingQuickText("");
+                }}
+                className="rounded-full border border-[#E4DFD2] px-3 py-1.5 text-[12px] font-medium text-[#5C615D] transition hover:border-[#46685C] hover:text-[#46685C] active:scale-95"
+              >
+                {suggestion}
+              </button>
+            ))}
+          </div>
           {quickCandidates.length > 0 ? (
-            <div className="mt-2 grid gap-2">
+            <div className="mt-3 grid gap-2">
               {quickCandidates.map((candidate) => (
                 <button
                   key={candidate.id}
@@ -951,7 +1149,7 @@ export default function Home() {
                       "선택",
                     )
                   }
-                  className="min-h-10 rounded-xl border border-emerald-100 bg-emerald-50 px-3 py-2 text-left text-sm font-semibold text-emerald-800 transition hover:bg-emerald-100"
+                  className="min-h-10 rounded-[14px] border border-[#D7E0D8] bg-[#E4ECE3] px-3 py-2 text-left text-sm font-semibold text-[#46685C] transition hover:bg-[#D7E0D8]"
                 >
                   {itemDisplayName(candidate)}
                 </button>
@@ -960,173 +1158,260 @@ export default function Home() {
           ) : null}
         </form>
 
-        <form
-          onSubmit={addItem}
-          className="mt-3 rounded-2xl border border-zinc-200 bg-white p-3"
-        >
-          <label className="text-sm font-semibold" htmlFor="new-clothing-name">
-            옷 추가
-          </label>
-          <div className="mt-3 grid grid-cols-[minmax(0,1fr)_44px] gap-2">
-            <input
-              id="new-clothing-name"
-              className="h-11 min-w-0 rounded-xl border border-zinc-200 px-3 text-sm outline-none transition focus:border-emerald-500"
-              placeholder="예: 러닝 반팔"
-              value={newName}
-              onChange={(event) => setNewName(event.target.value)}
-            />
-            <button
-              type="submit"
-              className="flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-600 text-white transition hover:bg-emerald-700"
-              aria-label="옷 추가"
+        {adding ? (
+          <form
+            onSubmit={addItem}
+            className="mt-3 rounded-[18px] border border-dashed border-[#9DB2A5] bg-[#FAF6EE] p-3"
+          >
+            <label
+              className="text-[13px] font-semibold text-[#5C615D]"
+              htmlFor="new-clothing-name"
             >
-              <Plus aria-hidden="true" size={20} />
-            </button>
-          </div>
-          <div className="mt-2 grid grid-cols-2 gap-2">
-            <input
-              className="h-10 min-w-0 rounded-xl border border-zinc-200 px-3 text-sm outline-none transition focus:border-emerald-500"
-              placeholder="브랜드"
-              value={newBrand}
-              onChange={(event) => setNewBrand(event.target.value)}
-              aria-label="브랜드"
-            />
-            <input
-              className="h-10 min-w-0 rounded-xl border border-zinc-200 px-3 text-sm outline-none transition focus:border-emerald-500"
-              placeholder="색상"
-              value={newColor}
-              onChange={(event) => setNewColor(event.target.value)}
-              aria-label="색상"
-            />
-          </div>
-          <div className="mt-2 grid grid-cols-[minmax(0,1fr)_96px] gap-2">
-            <input
-              className="h-10 min-w-0 rounded-xl border border-zinc-200 px-3 text-sm outline-none transition focus:border-emerald-500"
-              placeholder="특징"
-              value={newFeature}
-              onChange={(event) => setNewFeature(event.target.value)}
-              aria-label="특징"
-            />
-            <input
-              className="h-10 min-w-0 rounded-xl border border-zinc-200 px-3 text-sm outline-none transition focus:border-emerald-500"
-              placeholder="사이즈"
-              value={newSize}
-              onChange={(event) => setNewSize(event.target.value)}
-              aria-label="사이즈"
-            />
-          </div>
-          <div className="mt-2 grid grid-cols-2 gap-2">
-            <select
-              className="h-10 min-w-0 rounded-xl border border-zinc-200 bg-white px-2 text-sm outline-none transition focus:border-emerald-500"
-              value={newCategory}
-              onChange={(event) => setNewCategory(event.target.value)}
-              aria-label="옷 종류"
-            >
-              <option>상의</option>
-              <option>하의</option>
-              <option>운동복</option>
-              <option>니트</option>
-              <option>아우터</option>
-            </select>
-            <select
-              className="h-10 min-w-0 rounded-xl border border-zinc-200 bg-white px-2 text-sm outline-none transition focus:border-emerald-500"
-              value={newMaterial}
-              onChange={(event) => setNewMaterial(event.target.value)}
-              aria-label="소재"
-            >
-              <option>면</option>
-              <option>폴리에스터</option>
-              <option>울</option>
-              <option>데님</option>
-              <option>실크</option>
-              <option>혼방</option>
-            </select>
-          </div>
-        </form>
+              옷 추가
+            </label>
+            <div className="mt-3 grid grid-cols-[minmax(0,1fr)_44px] gap-2">
+              <input
+                id="new-clothing-name"
+                className="h-11 min-w-0 rounded-[14px] border border-[#E4DFD2] bg-white px-3 text-sm font-medium outline-none transition focus:border-[#46685C]"
+                placeholder="예: 러닝 반팔"
+                value={newName}
+                onChange={(event) => setNewName(event.target.value)}
+              />
+              <button
+                type="submit"
+                className="flex h-11 w-11 items-center justify-center rounded-[14px] bg-[#46685C] text-white transition active:scale-95"
+                aria-label="옷 추가"
+              >
+                <Plus aria-hidden="true" size={20} />
+              </button>
+            </div>
+            <div className="mt-2 grid grid-cols-2 gap-2">
+              <input
+                className="h-10 min-w-0 rounded-[12px] border border-[#E4DFD2] bg-white px-3 text-sm outline-none transition focus:border-[#46685C]"
+                placeholder="브랜드"
+                value={newBrand}
+                onChange={(event) => setNewBrand(event.target.value)}
+                aria-label="브랜드"
+              />
+              <input
+                className="h-10 min-w-0 rounded-[12px] border border-[#E4DFD2] bg-white px-3 text-sm outline-none transition focus:border-[#46685C]"
+                placeholder="색상"
+                value={newColor}
+                onChange={(event) => setNewColor(event.target.value)}
+                aria-label="색상"
+              />
+            </div>
+            <div className="mt-2 grid grid-cols-[minmax(0,1fr)_96px] gap-2">
+              <input
+                className="h-10 min-w-0 rounded-[12px] border border-[#E4DFD2] bg-white px-3 text-sm outline-none transition focus:border-[#46685C]"
+                placeholder="특징"
+                value={newFeature}
+                onChange={(event) => setNewFeature(event.target.value)}
+                aria-label="특징"
+              />
+              <input
+                className="h-10 min-w-0 rounded-[12px] border border-[#E4DFD2] bg-white px-3 text-sm outline-none transition focus:border-[#46685C]"
+                placeholder="사이즈"
+                value={newSize}
+                onChange={(event) => setNewSize(event.target.value)}
+                aria-label="사이즈"
+              />
+            </div>
+            <div className="mt-2 grid grid-cols-2 gap-2">
+              <select
+                className="h-10 min-w-0 rounded-[12px] border border-[#E4DFD2] bg-white px-2 text-sm font-medium outline-none transition focus:border-[#46685C]"
+                value={newCategory}
+                onChange={(event) => setNewCategory(event.target.value)}
+                aria-label="옷 종류"
+              >
+                <option>상의</option>
+                <option>셔츠</option>
+                <option>하의</option>
+                <option>운동복</option>
+                <option>니트</option>
+                <option>아우터</option>
+                <option>코트</option>
+              </select>
+              <select
+                className="h-10 min-w-0 rounded-[12px] border border-[#E4DFD2] bg-white px-2 text-sm font-medium outline-none transition focus:border-[#46685C]"
+                value={newMaterial}
+                onChange={(event) => setNewMaterial(event.target.value)}
+                aria-label="소재"
+              >
+                <option>면</option>
+                <option>폴리에스터</option>
+                <option>울</option>
+                <option>데님</option>
+                <option>실크</option>
+                <option>혼방</option>
+              </select>
+            </div>
+          </form>
+        ) : null}
 
-        <nav className="mt-5 grid grid-cols-3 rounded-2xl bg-zinc-200 p-1">
-          {[
-            ["all", "전체"],
-            ["needsCare", "관리 필요"],
-            ["fresh", "깨끗함"],
-          ].map(([key, label]) => (
-            <button
-              key={key}
-              type="button"
-              onClick={() => setFilter(key as typeof filter)}
-              className={`h-10 rounded-xl text-sm font-semibold transition ${
-                filter === key ? "bg-white text-[#17211c]" : "text-zinc-600"
-              }`}
-            >
-              {label}
-            </button>
-          ))}
+        <nav className="mt-5 flex items-center justify-between gap-2">
+          <div className="flex min-w-0 gap-1 overflow-x-auto">
+            {[
+              ["all", `전체 ${items.length}`],
+              ["needsCare", `관리 필요 ${needsCareCount}`],
+              ["fresh", `깨끗함 ${freshCount}`],
+            ].map(([key, label]) => (
+              <button
+                key={key}
+                type="button"
+                onClick={() => setFilter(key as typeof filter)}
+                className={`h-9 shrink-0 rounded-full px-3 text-[13px] font-semibold transition active:scale-95 ${
+                  filter === key
+                    ? "bg-[#1B201D] text-white"
+                    : "text-[#5C615D] hover:bg-white/60"
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          <button
+            type="button"
+            onClick={() => setAdding((value) => !value)}
+            className="inline-flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-full border border-[#E4DFD2] bg-white px-3 text-[13px] font-semibold text-[#1B201D] shadow-sm transition active:scale-95"
+          >
+            <Plus aria-hidden="true" size={15} />
+            옷 추가
+          </button>
         </nav>
 
-        <section className="mt-4 flex flex-1 flex-col gap-3 pb-6">
+        <div className="mt-2 grid grid-cols-3 gap-2">
+          <select
+            className="h-9 min-w-0 rounded-full border border-[#E4DFD2] bg-white px-3 text-[12px] font-semibold text-[#5C615D] outline-none focus:border-[#46685C]"
+            value={brandFilter}
+            onChange={(event) => setBrandFilter(event.target.value)}
+            aria-label="브랜드 필터"
+          >
+            <option value="all">브랜드 전체</option>
+            {brandOptions.map((brand) => (
+              <option key={brand} value={brand}>
+                {brand}
+              </option>
+            ))}
+          </select>
+          <select
+            className="h-9 min-w-0 rounded-full border border-[#E4DFD2] bg-white px-3 text-[12px] font-semibold text-[#5C615D] outline-none focus:border-[#46685C]"
+            value={categoryFilter}
+            onChange={(event) => setCategoryFilter(event.target.value)}
+            aria-label="종류 필터"
+          >
+            <option value="all">종류 전체</option>
+            {categoryOptions.map((category) => (
+              <option key={category} value={category}>
+                {category}
+              </option>
+            ))}
+          </select>
+          <select
+            className="h-9 min-w-0 rounded-full border border-[#E4DFD2] bg-white px-3 text-[12px] font-semibold text-[#5C615D] outline-none focus:border-[#46685C]"
+            value={sortMode}
+            onChange={(event) => setSortMode(event.target.value as SortMode)}
+            aria-label="정렬"
+          >
+            <option value="careFirst">관리 우선</option>
+            <option value="recentWear">최근 착용</option>
+            <option value="brand">브랜드</option>
+            <option value="category">종류</option>
+            <option value="wearCount">착용 많은순</option>
+          </select>
+        </div>
+
+        <section className="mt-4 flex flex-1 flex-col gap-3">
           {filteredItems.map((item) => {
             const currentStatus = statusFor(item);
             const visual = categoryVisualFor(item);
+            const tone = designToneFor(currentStatus);
             const CategoryIcon = visual.icon;
 
             return (
               <article
                 key={item.id}
-                className="rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm shadow-zinc-200/60"
+                className="overflow-hidden rounded-[22px] border border-[#E4DFD2] bg-white"
               >
                 <div
-                  className={`mb-3 flex min-h-24 items-center justify-between gap-3 rounded-2xl border px-4 py-3 ${visual.surface}`}
+                  className={`mx-4 mt-4 flex min-h-20 items-center justify-between gap-3 rounded-[18px] border px-4 py-3 ${tone.surface} ${tone.border}`}
                 >
                   <div className="min-w-0">
-                    <p className="text-xs font-semibold">{visual.label}</p>
+                    <p className="text-[12px] font-semibold text-[#5C615D]">
+                      {visual.label}
+                    </p>
                     <div className="mt-2 flex min-h-12 items-center">
                       <BrandLogoMark item={item} />
                     </div>
                   </div>
-                  <div
-                    className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl shadow-sm ${visual.iconBox}`}
-                  >
-                    <CategoryIcon aria-hidden="true" size={30} />
+                  <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-[18px] bg-white/80 text-[#1B201D] shadow-sm">
+                    <CategoryIcon aria-hidden="true" size={30} strokeWidth={1.8} />
                   </div>
                 </div>
 
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex min-w-0 gap-3">
-                    <div className="min-w-0">
-                      <h2 className="break-words text-base font-semibold leading-6">
-                        {itemTitle(item)}
-                      </h2>
-                      <p className="mt-1 break-words text-sm font-medium text-zinc-600">
-                        {itemDetailParts(item).join(" · ") ||
-                          "구분 정보 미입력"}
-                      </p>
-                      <p className="mt-0.5 text-xs font-medium text-zinc-500">
-                        {item.category} · {item.material} · {wearSummary(item)}
-                      </p>
-                    </div>
+                <div className="flex items-start justify-between gap-3 px-4 pt-4">
+                  <div className="min-w-0">
+                    <h2 className="text-[16px] font-bold leading-6 text-[#1B201D]">
+                      {itemTitle(item)}
+                    </h2>
+                    <p className="mt-0.5 text-[12px] font-medium text-[#5C615D]">
+                      {itemDetailParts(item).join(" · ") || "구분 정보 미입력"}
+                    </p>
+                    <p className="mt-1 text-[12px] font-medium text-[#9A9A92]">
+                      {item.category} · {item.material} · {wearSummary(item)}
+                    </p>
                   </div>
                   <span
-                    className={`inline-flex shrink-0 items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-semibold ${currentStatus.tone}`}
+                    className={`inline-flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1 text-[12px] font-semibold ${tone.chip}`}
                   >
-                    <span className={`h-2 w-2 rounded-full ${currentStatus.dot}`} />
+                    <span className={`h-1.5 w-1.5 rounded-full ${tone.dot}`} />
                     {currentStatus.label}
                   </span>
                 </div>
 
-                <div className="mt-3 rounded-xl bg-zinc-50 px-3 py-2">
-                  <p className="text-sm font-semibold text-zinc-800">
-                    {currentStatus.reason}
-                  </p>
-                  <div className="mt-1 grid gap-0.5 text-xs font-medium text-zinc-500">
-                    <p>마지막 착용 {calendarDateSummary(item.wornAt)}</p>
-                    <p>마지막 세탁 {calendarDateSummary(item.washedAt)}</p>
-                    {item.maintainedAt ? (
-                      <p>마지막 관리 {calendarDateSummary(item.maintainedAt)}</p>
-                    ) : null}
+                <div className="mx-4 mt-3 grid grid-cols-3 rounded-[16px] bg-[#FAF6EE] px-3 py-3">
+                  <div className="min-w-0 pr-2">
+                    <p className="text-[10px] font-semibold uppercase text-[#9A9A92]">
+                      마지막 착용
+                    </p>
+                    <p className="mt-1 text-[13px] font-bold text-[#1B201D]">
+                      {calendarDate(item.wornAt)}
+                    </p>
+                    <p className="mt-0.5 text-[11px] font-medium text-[#9A9A92]">
+                      {relativeDate(item.wornAt) ?? "기록 없음"}
+                    </p>
+                  </div>
+                  <div className="min-w-0 border-l border-[#E4DFD2] px-2">
+                    <p className="text-[10px] font-semibold uppercase text-[#9A9A92]">
+                      마지막 세탁
+                    </p>
+                    <p className="mt-1 text-[13px] font-bold text-[#1B201D]">
+                      {calendarDate(item.washedAt)}
+                    </p>
+                    <p className="mt-0.5 text-[11px] font-medium text-[#9A9A92]">
+                      {relativeDate(item.washedAt)}
+                    </p>
+                  </div>
+                  <div className="min-w-0 border-l border-[#E4DFD2] pl-2">
+                    <p className="text-[10px] font-semibold uppercase text-[#9A9A92]">
+                      상태
+                    </p>
+                    <p className={`mt-1 text-[13px] font-bold ${tone.metric}`}>
+                      {currentStatus.label}
+                    </p>
+                    <p className="mt-0.5 text-[11px] font-medium leading-4 text-[#5C615D]">
+                      {currentStatus.reason}
+                    </p>
                   </div>
                 </div>
 
-                <div className="mt-3 grid grid-cols-3 gap-2">
+                {item.maintainedAt ? (
+                  <p className="mx-4 mt-2 rounded-[12px] bg-[#DAE4EA] px-3 py-2 text-[12px] font-medium text-[#5E7E92]">
+                    마지막 관리 {calendarDateSummary(item.maintainedAt)}
+                  </p>
+                ) : null}
+
+                <div className="flex flex-wrap gap-1.5 px-4 pt-3">
                   {(Object.keys(conditionMeta) as ConditionFlag[]).map((flag) => {
                     const Icon = conditionMeta[flag].icon;
                     const active = item.flags.includes(flag);
@@ -1136,42 +1421,54 @@ export default function Home() {
                         key={flag}
                         type="button"
                         onClick={() =>
-                          updateConditionFlags(item.id, [flag], conditionMeta[flag].label)
+                          updateConditionFlags(
+                            item.id,
+                            [flag],
+                            conditionMeta[flag].label,
+                          )
                         }
-                        className={`flex h-9 items-center justify-center gap-1 rounded-xl border text-xs font-semibold transition ${
+                        className={`inline-flex h-8 items-center justify-center gap-1.5 rounded-full border px-3 text-[12px] font-semibold transition active:scale-95 ${
                           active
-                            ? "border-rose-200 bg-rose-50 text-rose-700"
-                            : "border-zinc-200 text-zinc-600 hover:bg-zinc-50"
+                            ? "border-[#B55842] bg-[#F1DDD2] text-[#B55842]"
+                            : "border-[#E4DFD2] text-[#5C615D] hover:bg-[#FAF6EE]"
                         }`}
                       >
-                        <Icon aria-hidden="true" size={14} />
+                        <Icon aria-hidden="true" size={13} />
                         {conditionMeta[flag].label}
                       </button>
                     );
                   })}
                 </div>
 
-                <div className="mt-3 grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-2 gap-2 p-4">
                   <button
                     type="button"
                     onClick={() => addWear(item.id)}
-                    className="flex h-11 items-center justify-center gap-2 rounded-xl border border-zinc-200 text-sm font-semibold text-zinc-700 transition hover:bg-zinc-50"
+                    className="flex h-11 items-center justify-center gap-2 rounded-[14px] border border-[#E4DFD2] text-[14px] font-bold text-[#1B201D] transition hover:bg-[#FAF6EE] active:scale-95"
                   >
-                    <Clock3 aria-hidden="true" size={17} />
-                    오늘 입음
+                    <Clock3 aria-hidden="true" size={16} />
+                    오늘 입었어요
                   </button>
                   <button
                     type="button"
                     onClick={() => markWashed(item.id)}
-                    className="flex h-11 items-center justify-center gap-2 rounded-xl bg-[#17211c] text-sm font-semibold text-white transition hover:bg-emerald-800"
+                    className="flex h-11 items-center justify-center gap-2 rounded-[14px] bg-[#1B201D] text-[14px] font-bold text-white transition active:scale-95"
                   >
-                    <CheckCircle2 aria-hidden="true" size={17} />
+                    <CheckCircle2 aria-hidden="true" size={16} />
                     세탁 완료
                   </button>
                 </div>
               </article>
             );
           })}
+          {filteredItems.length === 0 ? (
+            <div className="rounded-[22px] border border-dashed border-[#D7D0C2] px-5 py-8 text-center text-[#5C615D]">
+              <p className="font-bold">해당하는 옷이 없습니다</p>
+              <p className="mt-1 text-[13px] font-medium">
+                필터를 바꾸거나 새 옷을 추가해보세요.
+              </p>
+            </div>
+          ) : null}
         </section>
       </section>
     </main>
