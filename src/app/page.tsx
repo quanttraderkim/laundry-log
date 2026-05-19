@@ -1280,46 +1280,63 @@ export default function Home() {
           </button>
         </nav>
 
-        <div className="mt-2 grid grid-cols-3 gap-2">
-          <select
-            className="h-9 min-w-0 rounded-full border border-[#E4DFD2] bg-white px-3 text-[12px] font-semibold text-[#5C615D] outline-none focus:border-[#46685C]"
-            value={brandFilter}
-            onChange={(event) => setBrandFilter(event.target.value)}
-            aria-label="브랜드 필터"
-          >
-            <option value="all">브랜드 전체</option>
-            {brandOptions.map((brand) => (
-              <option key={brand} value={brand}>
-                {brand}
-              </option>
-            ))}
-          </select>
-          <select
-            className="h-9 min-w-0 rounded-full border border-[#E4DFD2] bg-white px-3 text-[12px] font-semibold text-[#5C615D] outline-none focus:border-[#46685C]"
-            value={categoryFilter}
-            onChange={(event) => setCategoryFilter(event.target.value)}
-            aria-label="종류 필터"
-          >
-            <option value="all">종류 전체</option>
-            {categoryOptions.map((category) => (
-              <option key={category} value={category}>
-                {category}
-              </option>
-            ))}
-          </select>
-          <select
-            className="h-9 min-w-0 rounded-full border border-[#E4DFD2] bg-white px-3 text-[12px] font-semibold text-[#5C615D] outline-none focus:border-[#46685C]"
-            value={sortMode}
-            onChange={(event) => setSortMode(event.target.value as SortMode)}
-            aria-label="정렬"
-          >
-            <option value="careFirst">관리 우선</option>
-            <option value="recentWear">최근 착용</option>
-            <option value="brand">브랜드</option>
-            <option value="category">종류</option>
-            <option value="wearCount">착용 많은순</option>
-          </select>
-        </div>
+        <section
+          className="mt-3 rounded-[18px] border border-[#E4DFD2] bg-white p-3"
+          aria-label="옷 목록 필터"
+        >
+          <div className="grid grid-cols-2 gap-2">
+            <label className="min-w-0 text-[11px] font-bold uppercase text-[#9A9A92]">
+              브랜드
+              <select
+                className="mt-1 h-10 w-full min-w-0 rounded-[12px] border border-[#E4DFD2] bg-[#FAF6EE] px-2 text-[13px] font-semibold text-[#1B201D] outline-none transition focus:border-[#46685C]"
+                value={brandFilter}
+                onChange={(event) => setBrandFilter(event.target.value)}
+                aria-label="브랜드 필터"
+              >
+                <option value="all">전체 브랜드</option>
+                {brandOptions.map((brand) => (
+                  <option key={brand} value={brand}>
+                    {brand}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="min-w-0 text-[11px] font-bold uppercase text-[#9A9A92]">
+              종류
+              <select
+                className="mt-1 h-10 w-full min-w-0 rounded-[12px] border border-[#E4DFD2] bg-[#FAF6EE] px-2 text-[13px] font-semibold text-[#1B201D] outline-none transition focus:border-[#46685C]"
+                value={categoryFilter}
+                onChange={(event) => setCategoryFilter(event.target.value)}
+                aria-label="종류 필터"
+              >
+                <option value="all">전체 종류</option>
+                {categoryOptions.map((category) => (
+                  <option key={category} value={category}>
+                    {category}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="col-span-2 min-w-0 text-[11px] font-bold uppercase text-[#9A9A92]">
+              정렬
+              <select
+                className="mt-1 h-10 w-full min-w-0 rounded-[12px] border border-[#E4DFD2] bg-[#FAF6EE] px-2 text-[13px] font-semibold text-[#1B201D] outline-none transition focus:border-[#46685C]"
+                value={sortMode}
+                onChange={(event) => setSortMode(event.target.value as SortMode)}
+                aria-label="정렬"
+              >
+                <option value="careFirst">관리 필요 우선</option>
+                <option value="recentWear">최근 착용순</option>
+                <option value="brand">브랜드순</option>
+                <option value="category">종류순</option>
+                <option value="wearCount">착용 많은 순</option>
+              </select>
+            </label>
+          </div>
+          <p className="mt-2 px-1 text-[12px] font-medium text-[#5C615D]">
+            {items.length}벌 중 {filteredItems.length}벌 표시
+          </p>
+        </section>
 
         <section className="mt-4 flex flex-1 flex-col gap-3">
           {filteredItems.map((item) => {
