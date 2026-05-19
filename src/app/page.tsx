@@ -19,6 +19,7 @@ type CareProfile =
   | "active_synthetic"
   | "cotton_top"
   | "denim"
+  | "seasonal_outer"
   | "standard_outer"
   | "wool_delicate";
 
@@ -140,6 +141,21 @@ const seedItems: ClothingItem[] = [
     wearCount: 3,
     flags: [],
   },
+  {
+    id: 6,
+    name: "울 코트",
+    brand: "시스템",
+    color: "차콜",
+    feature: "롱 코트",
+    size: "M",
+    category: "아우터",
+    material: "울",
+    careProfile: "seasonal_outer",
+    washedAt: "2026-01-20",
+    wornAt: "2026-05-10",
+    wearCount: 12,
+    flags: [],
+  },
 ];
 
 function daysSince(date?: string) {
@@ -213,6 +229,16 @@ function statusFor(item: ClothingItem): Status {
     return status("깨끗함", "착용 횟수 기준 여유 있음", "emerald");
   }
 
+  if (item.careProfile === "seasonal_outer") {
+    if (item.wearCount >= 10 || laundryDays >= 90) {
+      return status("곧 세탁", "시즌 종료 세탁/드라이 점검", "amber");
+    }
+    if (item.wearCount >= 1) {
+      return status("통풍 권장", "착용 후 통풍, 시즌 종료 관리", "sky");
+    }
+    return status("깨끗함", "시즌 종료 관리 대상", "emerald");
+  }
+
   if (item.careProfile === "cotton_top") {
     if (item.wearCount >= 2) {
       return status("세탁 권장", "피부 접촉 의류 2회 착용", "rose");
@@ -258,7 +284,15 @@ function status(label: Status["label"], reason: string, color: string): Status {
 }
 
 function profileFor(category: string, material: string): CareProfile {
-  if (category === "운동복" || material === "폴리에스터") {
+  if (category === "운동복") {
+    return "active_synthetic";
+  }
+
+  if (category === "아우터") {
+    return "seasonal_outer";
+  }
+
+  if (material === "폴리에스터") {
     return "active_synthetic";
   }
 
@@ -305,11 +339,19 @@ function identityParts(item: ClothingItem) {
     .filter(Boolean);
 }
 
+function itemTitle(item: ClothingItem) {
+  return item.brand ? `${item.brand} ${item.name}` : item.name;
+}
+
+function itemDetailParts(item: ClothingItem) {
+  return [item.color, item.feature, item.size].map(cleanText).filter(Boolean);
+}
+
 function itemDisplayName(item: ClothingItem) {
-  const identity = identityParts(item);
-  return identity.length > 0
-    ? `${item.name} · ${identity.join(" · ")}`
-    : item.name;
+  const details = itemDetailParts(item);
+  return details.length > 0
+    ? `${itemTitle(item)} · ${details.join(" · ")}`
+    : itemTitle(item);
 }
 
 function identityKeyFor(item: Pick<
@@ -319,6 +361,20 @@ function identityKeyFor(item: Pick<
   return [item.name, item.brand, item.color, item.feature, item.size]
     .map(normalizeText)
     .join("|");
+}
+
+function hasConditionFlags(item: ClothingItem) {
+  return item.flags.length > 0;
+}
+
+function wearSummary(item: ClothingItem) {
+  if (item.careProfile === "seasonal_outer" && !hasConditionFlags(item)) {
+    return `시즌 관리 기준 · ${item.wearCount}회 착용`;
+  }
+
+  return hasConditionFlags(item)
+    ? `세탁 필요 상태 · ${item.wearCount}회 착용`
+    : `${item.wearCount}회 착용`;
 }
 
 function isConditionFlag(value: string): value is ConditionFlag {
@@ -342,13 +398,22 @@ function normalizeItem(item: Partial<ClothingItem>, index: number): ClothingItem
     size: cleanText(item.size),
     category,
     material,
-    careProfile: item.careProfile ?? profileFor(category, material),
+    careProfile: profileFor(category, material),
     washedAt: item.washedAt ?? todayText,
     wornAt: item.wornAt ?? (wearCount > 0 ? todayText : undefined),
     maintainedAt: item.maintainedAt,
     wearCount,
     flags,
   };
+}
+
+function withDemoOuter(items: ClothingItem[]) {
+  const demoOuter = seedItems.find((item) => item.careProfile === "seasonal_outer");
+  const hasOuter = items.some(
+    (item) => item.category === "아우터" || item.careProfile === "seasonal_outer",
+  );
+
+  return hasOuter || !demoOuter ? items : [...items, demoOuter];
 }
 
 function loadStoredItems() {
@@ -363,7 +428,7 @@ function loadStoredItems() {
   try {
     const parsedItems = JSON.parse(storedItems);
     return Array.isArray(parsedItems)
-      ? parsedItems.map((item, index) => normalizeItem(item, index))
+      ? withDemoOuter(parsedItems.map((item, index) => normalizeItem(item, index)))
       : seedItems;
   } catch {
     return seedItems;
@@ -374,6 +439,7 @@ function matchScore(item: ClothingItem, text: string) {
   const normalized = normalizeText(text);
   let score = 0;
   let hasNameSignal = false;
+  let identitySignalCount = 0;
 
   if (normalized.includes(normalizeText(item.name))) {
     score += 8;
@@ -386,26 +452,40 @@ function matchScore(item: ClothingItem, text: string) {
   score += matchingNameTokenCount * 2;
   hasNameSignal = hasNameSignal || matchingNameTokenCount > 0;
 
-  if (item.brand && normalized.includes(normalizeText(item.brand))) score += 4;
+  if (item.brand && normalized.includes(normalizeText(item.brand))) {
+    score += 4;
+    identitySignalCount += 1;
+  }
   if (colorAliases(item.color).some((color) => normalized.includes(color))) {
     score += 4;
+    identitySignalCount += 1;
   }
-  if (item.size && normalized.includes(normalizeText(item.size))) score += 4;
+  if (item.size && normalized.includes(normalizeText(item.size))) {
+    score += 4;
+    identitySignalCount += 1;
+  }
 
-  score += textTokens(item.feature).filter((token) =>
+  const matchingFeatureTokenCount = textTokens(item.feature).filter((token) =>
     normalized.includes(token),
-  ).length * 3;
+  ).length;
+  score += matchingFeatureTokenCount * 3;
+  if (matchingFeatureTokenCount > 0) {
+    identitySignalCount += 1;
+  }
 
   if (normalized.includes(normalizeText(item.category))) score += 1;
   if (normalized.includes(normalizeText(item.material))) score += 1;
 
-  return { score, hasNameSignal };
+  return { score, hasNameSignal, identitySignalCount };
 }
 
 function findItemByText(items: ClothingItem[], text: string) {
   const candidates = items
     .map((item) => ({ item, ...matchScore(item, text) }))
-    .filter(({ score, hasNameSignal }) => score >= 4 && hasNameSignal)
+    .filter(
+      ({ score, hasNameSignal, identitySignalCount }) =>
+        score >= 4 && (hasNameSignal || identitySignalCount >= 2),
+    )
     .sort((a, b) => b.score - a.score);
 
   if (candidates.length === 0) {
@@ -422,6 +502,27 @@ function findItemByText(items: ClothingItem[], text: string) {
   }
 
   return { item: candidates[0].item, ambiguousItems: [] };
+}
+
+function conditionFlagsFromText(text: string) {
+  const flags: ConditionFlag[] = [];
+  if (text.includes("땀")) flags.push("sweat");
+  if (text.includes("냄새")) flags.push("odor");
+  if (text.includes("얼룩")) flags.push("stain");
+
+  return flags;
+}
+
+function actionFromText(text: string) {
+  if (text.includes("세탁") || text.includes("빨")) {
+    return "wash";
+  }
+
+  if (text.includes("입") || text.includes("착용") || text.includes("신")) {
+    return "wear";
+  }
+
+  return null;
 }
 
 export default function Home() {
@@ -441,8 +542,10 @@ export default function Home() {
   const [newCategory, setNewCategory] = useState("상의");
   const [newMaterial, setNewMaterial] = useState("면");
   const [quickLog, setQuickLog] = useState("");
+  const [quickCandidates, setQuickCandidates] = useState<ClothingItem[]>([]);
+  const [pendingQuickText, setPendingQuickText] = useState("");
   const [feedback, setFeedback] = useState(
-    "예: 오늘 나이키 검정 러닝 반팔 M 입었어",
+    "예: 오늘 나이키 러닝 반팔 검정 M 입었어",
   );
   const [todayLogCount, setTodayLogCount] = useState(() => {
     if (typeof window === "undefined") {
@@ -509,6 +612,69 @@ export default function Home() {
     setFeedback(`${source} 기록 완료 · 상태 재계산`);
   }
 
+  function updateConditionFlags(
+    id: number,
+    flags: ConditionFlag[],
+    source = "상태",
+    mode: "add" | "toggle" = "toggle",
+  ) {
+    if (flags.length === 0) {
+      return;
+    }
+
+    setItems((current) =>
+      current.map((item) => {
+        if (item.id !== id) {
+          return item;
+        }
+
+        if (mode === "add") {
+          return {
+            ...item,
+            flags: Array.from(new Set([...item.flags, ...flags])),
+          };
+        }
+
+        const shouldRemove = flags.every((flag) => item.flags.includes(flag));
+        return {
+          ...item,
+          flags: shouldRemove
+            ? item.flags.filter((flag) => !flags.includes(flag))
+            : Array.from(new Set([...item.flags, ...flags])),
+        };
+      }),
+    );
+    setFeedback(`${source} 표시 업데이트 · 착용 횟수 유지`);
+  }
+
+  function completeQuickLog(item: ClothingItem, text: string, source = "문장") {
+    const flags = conditionFlagsFromText(text);
+    const action = actionFromText(text);
+
+    setQuickCandidates([]);
+    setPendingQuickText("");
+
+    if (action === "wash") {
+      markWashed(item.id, source);
+      setQuickLog("");
+      return;
+    }
+
+    if (action === "wear") {
+      addWear(item.id, flags, source);
+      setQuickLog("");
+      return;
+    }
+
+    if (flags.length > 0) {
+      updateConditionFlags(item.id, flags, source, "add");
+      setQuickLog("");
+      return;
+    }
+
+    setFeedback("입었어 또는 세탁했어로 기록 가능");
+  }
+
   function addItem(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
@@ -563,37 +729,21 @@ export default function Home() {
     const { item, ambiguousItems } = findItemByText(items, text);
     if (!text || !item) {
       if (ambiguousItems.length > 1) {
+        setQuickCandidates(ambiguousItems);
+        setPendingQuickText(text);
         setFeedback(
-          `동명이 여러 벌입니다: ${ambiguousItems
-            .slice(0, 2)
-            .map(itemDisplayName)
-            .join(" / ")}`,
+          "동명이 여러 벌입니다. 아래에서 기록할 옷을 선택해주세요",
         );
         return;
       }
 
+      setQuickCandidates([]);
+      setPendingQuickText("");
       setFeedback("등록된 옷 이름을 포함해 다시 입력");
       return;
     }
 
-    const flags: ConditionFlag[] = [];
-    if (text.includes("땀")) flags.push("sweat");
-    if (text.includes("냄새")) flags.push("odor");
-    if (text.includes("얼룩")) flags.push("stain");
-
-    if (text.includes("세탁") || text.includes("빨")) {
-      markWashed(item.id, "문장");
-      setQuickLog("");
-      return;
-    }
-
-    if (text.includes("입")) {
-      addWear(item.id, flags, "문장");
-      setQuickLog("");
-      return;
-    }
-
-    setFeedback("입었어 또는 세탁했어로 기록 가능");
+    completeQuickLog(item, text);
   }
 
   return (
@@ -640,9 +790,13 @@ export default function Home() {
             <input
               id="quick-log"
               className="h-11 min-w-0 rounded-xl border border-zinc-200 px-3 text-sm outline-none transition focus:border-emerald-500"
-              placeholder="오늘 나이키 검정 러닝 반팔 M 입었어"
+              placeholder="오늘 나이키 러닝 반팔 검정 M 입었어"
               value={quickLog}
-              onChange={(event) => setQuickLog(event.target.value)}
+              onChange={(event) => {
+                setQuickLog(event.target.value);
+                setQuickCandidates([]);
+                setPendingQuickText("");
+              }}
             />
             <button
               type="submit"
@@ -653,6 +807,26 @@ export default function Home() {
             </button>
           </div>
           <p className="mt-2 text-xs font-medium text-zinc-500">{feedback}</p>
+          {quickCandidates.length > 0 ? (
+            <div className="mt-2 grid gap-2">
+              {quickCandidates.map((candidate) => (
+                <button
+                  key={candidate.id}
+                  type="button"
+                  onClick={() =>
+                    completeQuickLog(
+                      candidate,
+                      pendingQuickText || quickLog,
+                      "선택",
+                    )
+                  }
+                  className="min-h-10 rounded-xl border border-emerald-100 bg-emerald-50 px-3 py-2 text-left text-sm font-semibold text-emerald-800 transition hover:bg-emerald-100"
+                >
+                  {itemDisplayName(candidate)}
+                </button>
+              ))}
+            </div>
+          ) : null}
         </form>
 
         <form
@@ -774,14 +948,14 @@ export default function Home() {
                     </div>
                     <div className="min-w-0">
                       <h2 className="break-words text-base font-semibold leading-6">
-                        {item.name}
+                        {itemTitle(item)}
                       </h2>
                       <p className="mt-1 break-words text-sm font-medium text-zinc-600">
-                        {identityParts(item).join(" · ") ||
+                        {itemDetailParts(item).join(" · ") ||
                           "구분 정보 미입력"}
                       </p>
                       <p className="mt-0.5 text-xs font-medium text-zinc-500">
-                        {item.category} · {item.material} · {item.wearCount}회 착용
+                        {item.category} · {item.material} · {wearSummary(item)}
                       </p>
                     </div>
                   </div>
@@ -815,7 +989,9 @@ export default function Home() {
                       <button
                         key={flag}
                         type="button"
-                        onClick={() => addWear(item.id, [flag], conditionMeta[flag].label)}
+                        onClick={() =>
+                          updateConditionFlags(item.id, [flag], conditionMeta[flag].label)
+                        }
                         className={`flex h-9 items-center justify-center gap-1 rounded-xl border text-xs font-semibold transition ${
                           active
                             ? "border-rose-200 bg-rose-50 text-rose-700"
