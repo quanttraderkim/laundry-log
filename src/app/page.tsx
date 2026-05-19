@@ -43,6 +43,7 @@ type ClothingItem = {
   careProfile: CareProfile;
   washedAt: string;
   wornAt?: string;
+  styledAt?: string;
   maintainedAt?: string;
   wearCount: number;
   flags: ConditionFlag[];
@@ -649,6 +650,10 @@ function actionFromText(text: string) {
     return "wash";
   }
 
+  if (text.includes("스타일러")) {
+    return "style";
+  }
+
   if (text.includes("입") || text.includes("착용") || text.includes("신")) {
     return "wear";
   }
@@ -726,6 +731,16 @@ export default function Home() {
     setFeedback(`${source} 기록 완료 · 세탁 기준 초기화`);
   }
 
+  function markStyled(id: number, source = "버튼") {
+    setItems((current) =>
+      current.map((item) =>
+        item.id === id ? { ...item, styledAt: todayText } : item,
+      ),
+    );
+    setTodayLogCount((count) => count + 1);
+    setFeedback(`${source} 기록 완료 · 스타일러 날짜 업데이트`);
+  }
+
   function addWear(id: number, flags: ConditionFlag[] = [], source = "버튼") {
     setItems((current) =>
       current.map((item) =>
@@ -787,6 +802,12 @@ export default function Home() {
 
     if (action === "wash") {
       markWashed(item.id, source);
+      setQuickLog("");
+      return;
+    }
+
+    if (action === "style") {
+      markStyled(item.id, source);
       setQuickLog("");
       return;
     }
@@ -1119,6 +1140,9 @@ export default function Home() {
                   </p>
                   <div className="mt-1 grid gap-0.5 text-xs font-medium text-zinc-500">
                     <p>마지막 착용 {calendarDateSummary(item.wornAt)}</p>
+                    {item.styledAt ? (
+                      <p>마지막 스타일러 {calendarDateSummary(item.styledAt)}</p>
+                    ) : null}
                     <p>마지막 세탁 {calendarDateSummary(item.washedAt)}</p>
                     {item.maintainedAt ? (
                       <p>마지막 관리 {calendarDateSummary(item.maintainedAt)}</p>
@@ -1151,21 +1175,29 @@ export default function Home() {
                   })}
                 </div>
 
-                <div className="mt-3 grid grid-cols-2 gap-2">
+                <div className="mt-3 grid grid-cols-3 gap-2">
                   <button
                     type="button"
                     onClick={() => addWear(item.id)}
-                    className="flex h-11 items-center justify-center gap-2 rounded-xl border border-zinc-200 text-sm font-semibold text-zinc-700 transition hover:bg-zinc-50"
+                    className="flex h-11 items-center justify-center gap-1.5 rounded-xl border border-zinc-200 text-xs font-semibold text-zinc-700 transition hover:bg-zinc-50"
                   >
-                    <Clock3 aria-hidden="true" size={17} />
+                    <Clock3 aria-hidden="true" size={15} />
                     오늘 입음
                   </button>
                   <button
                     type="button"
-                    onClick={() => markWashed(item.id)}
-                    className="flex h-11 items-center justify-center gap-2 rounded-xl bg-[#17211c] text-sm font-semibold text-white transition hover:bg-emerald-800"
+                    onClick={() => markStyled(item.id)}
+                    className="flex h-11 items-center justify-center gap-1.5 rounded-xl border border-violet-200 bg-violet-50 text-xs font-semibold text-violet-700 transition hover:bg-violet-100"
                   >
-                    <CheckCircle2 aria-hidden="true" size={17} />
+                    <Sparkles aria-hidden="true" size={15} />
+                    스타일러
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => markWashed(item.id)}
+                    className="flex h-11 items-center justify-center gap-1.5 rounded-xl bg-[#17211c] text-xs font-semibold text-white transition hover:bg-emerald-800"
+                  >
+                    <CheckCircle2 aria-hidden="true" size={15} />
                     세탁 완료
                   </button>
                 </div>
