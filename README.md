@@ -1,36 +1,41 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# WashLog
 
-## Getting Started
+옷을 언제 빨았는지 빠르게 기록하고, 모바일 웹에서 바로 확인하는 해커톤 서비스입니다. 현재 레포는 PRD 취합 전 팀원이 같은 화면을 보며 논의할 수 있도록 Next.js 기반의 모바일 우선 프로토타입과 협업 문서를 먼저 구성했습니다.
 
-First, run the development server:
+## 현재 판단
+
+| 항목 | 결정 |
+|---|---|
+| 구현 범위 | 웹 우선, 모바일 화면을 1차 기준으로 설계 |
+| 프론트엔드 | Next.js App Router, TypeScript, Tailwind CSS |
+| 초기 데이터 | 프로토타입은 브라우저 상태로 동작 |
+| DB 권장안 | Supabase Postgres. 인증, 관계형 데이터, RLS까지 한 번에 처리 가능 |
+| 레포 공개 | 해커톤 협업은 Public repo 권장. 단, API 키와 개인 데이터는 커밋 금지 |
+
+## 실행
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+브라우저에서 [http://localhost:3000](http://localhost:3000)을 열면 됩니다.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## 문서
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+| 문서 | 용도 |
+|---|---|
+| [Product Brief](docs/PRODUCT_BRIEF.md) | 서비스 목적, MVP, 우선순위 |
+| [Database Decision](docs/DATABASE_DECISION.md) | DB 선택 기준과 초안 스키마 |
+| [Collaboration Guide](CONTRIBUTING.md) | 브랜치, PR, PRD 취합 룰 |
 
-## Learn More
+## PRD 취합 방식
 
-To learn more about Next.js, take a look at the following resources:
+팀원 2명의 PRD는 `docs/prd/raw/`에 원문으로 넣고, 합의된 내용만 `docs/PRODUCT_BRIEF.md`와 추후 `docs/PRD.md`에 반영합니다. 중복 설명은 한 곳에만 남기고, 판단이 필요한 내용은 `결정 필요`로 표시합니다.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## 다음 액션
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+1. 팀원 PRD 2개 수집
+2. 공통 요구사항과 충돌 요구사항 분리
+3. Supabase 프로젝트 생성 여부 결정
+4. 인증 없이 단일 사용자 MVP를 먼저 완성한 뒤 공유/가족 단위 기능 확장
