@@ -8,8 +8,8 @@
 |---|---|
 | 구현 범위 | 웹 우선, 모바일 화면을 1차 기준으로 설계 |
 | 프론트엔드 | Next.js App Router, TypeScript, Tailwind CSS |
-| 초기 데이터 | 프로토타입은 브라우저 상태로 동작 |
-| DB 권장안 | Supabase Postgres. 인증, 관계형 데이터, RLS까지 한 번에 처리 가능 |
+| 초기 데이터 | 해커톤 데모는 브라우저 상태/LocalStorage 기준 |
+| DB 권장안 | 시간이 남으면 Supabase Postgres. 인증, 관계형 데이터, RLS까지 확장 가능 |
 | 레포 공개 | 해커톤 협업은 Public repo 권장. 단, API 키와 개인 데이터는 커밋 금지 |
 
 ## 실행
@@ -26,6 +26,7 @@ npm run dev
 | 문서 | 용도 |
 |---|---|
 | [PRD](docs/PRD.md) | 해커톤 합의본 제품 요구사항 |
+| [Photo Registration PRD](docs/prd/PHOTO_REGISTRATION_PRD.md) | 사진 기반 옷 등록 고도화 PRD |
 | [Product Brief](docs/PRODUCT_BRIEF.md) | 서비스 목적, MVP, 우선순위 |
 | [Database Decision](docs/DATABASE_DECISION.md) | DB 선택 기준과 초안 스키마 |
 | [Collaboration Guide](CONTRIBUTING.md) | 브랜치, PR, PRD 취합 룰 |
@@ -39,5 +40,6 @@ npm run dev
 1. 팀원 PRD 2개 수집
 2. 공통 요구사항과 충돌 요구사항 분리
 3. Supabase 프로젝트 생성 여부 결정
-4. 소재별 세탁 권장 규칙을 UI와 데이터 모델에 반영
-5. 인증 없이 단일 사용자 MVP를 먼저 완성한 뒤 공유/가족 단위 기능 확장
+4. 빠른 문장 입력과 `땀남/냄새/얼룩` 칩으로 데모 완성
+5. 소재별 세탁 권장 규칙을 UI와 데이터 모델에 반영
+6. 인증 없이 단일 사용자 MVP를 먼저 완성한 뒤 공유/가족 단위 기능 확장
