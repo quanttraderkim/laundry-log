@@ -5,11 +5,16 @@ import {
   CheckCircle2,
   Clock3,
   Droplets,
+  Dumbbell,
+  Layers,
   MessageCircle,
   Plus,
   Shirt,
   Sparkles,
+  StretchHorizontal,
+  Tags,
   TriangleAlert,
+  Umbrella,
   WashingMachine,
   Wind,
 } from "lucide-react";
@@ -375,6 +380,68 @@ function wearSummary(item: ClothingItem) {
   return hasConditionFlags(item)
     ? `세탁 필요 상태 · ${item.wearCount}회 착용`
     : `${item.wearCount}회 착용`;
+}
+
+function brandMarkFor(item: ClothingItem) {
+  const brand = cleanText(item.brand).replace(/\s/g, "");
+  const fallback = cleanText(item.name).replace(/\s/g, "");
+  const mark = brand || fallback;
+
+  return mark.length > 8 ? mark.slice(0, 8) : mark;
+}
+
+function categoryVisualFor(item: ClothingItem) {
+  if (item.category === "운동복" || item.careProfile === "active_synthetic") {
+    return {
+      icon: Dumbbell,
+      label: "운동복",
+      surface: "border-emerald-100 bg-emerald-50 text-emerald-800",
+      iconBox: "bg-white text-emerald-700",
+    };
+  }
+
+  if (item.category === "아우터" || item.careProfile === "seasonal_outer") {
+    return {
+      icon: Umbrella,
+      label: "아우터",
+      surface: "border-zinc-200 bg-zinc-100 text-zinc-800",
+      iconBox: "bg-white text-zinc-700",
+    };
+  }
+
+  if (item.category === "하의" || item.careProfile === "denim") {
+    return {
+      icon: StretchHorizontal,
+      label: "하의",
+      surface: "border-amber-100 bg-amber-50 text-amber-800",
+      iconBox: "bg-white text-amber-700",
+    };
+  }
+
+  if (item.category === "니트" || item.careProfile === "wool_delicate") {
+    return {
+      icon: Layers,
+      label: "니트",
+      surface: "border-sky-100 bg-sky-50 text-sky-800",
+      iconBox: "bg-white text-sky-700",
+    };
+  }
+
+  if (item.category === "상의" || item.careProfile === "cotton_top") {
+    return {
+      icon: Shirt,
+      label: "상의",
+      surface: "border-emerald-100 bg-white text-zinc-800",
+      iconBox: "bg-emerald-50 text-emerald-700",
+    };
+  }
+
+  return {
+    icon: Tags,
+    label: item.category,
+    surface: "border-zinc-200 bg-white text-zinc-800",
+    iconBox: "bg-zinc-100 text-zinc-700",
+  };
 }
 
 function isConditionFlag(value: string): value is ConditionFlag {
@@ -935,17 +1002,32 @@ export default function Home() {
         <section className="mt-4 flex flex-1 flex-col gap-3 pb-6">
           {filteredItems.map((item) => {
             const currentStatus = statusFor(item);
+            const visual = categoryVisualFor(item);
+            const CategoryIcon = visual.icon;
 
             return (
               <article
                 key={item.id}
                 className="rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm shadow-zinc-200/60"
               >
+                <div
+                  className={`mb-3 flex min-h-24 items-center justify-between gap-3 rounded-2xl border px-4 py-3 ${visual.surface}`}
+                >
+                  <div className="min-w-0">
+                    <p className="text-xs font-semibold">{visual.label}</p>
+                    <p className="mt-1 break-words text-[28px] font-bold leading-8">
+                      {brandMarkFor(item)}
+                    </p>
+                  </div>
+                  <div
+                    className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl shadow-sm ${visual.iconBox}`}
+                  >
+                    <CategoryIcon aria-hidden="true" size={30} />
+                  </div>
+                </div>
+
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex min-w-0 gap-3">
-                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-zinc-100 text-zinc-700">
-                      <Shirt aria-hidden="true" size={21} />
-                    </div>
                     <div className="min-w-0">
                       <h2 className="break-words text-base font-semibold leading-6">
                         {itemTitle(item)}
