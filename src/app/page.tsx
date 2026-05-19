@@ -1524,7 +1524,7 @@ export default function Home() {
                   <button
                     type="button"
                     onClick={() => markStyled(item.id)}
-                    className="flex h-11 items-center justify-center gap-1.5 rounded-[14px] border border-[#D8D0F0] bg-[#F3F0FF] text-[12px] font-bold text-[#6750A4] transition hover:bg-[#E8E0FF] active:scale-95"
+                    className="flex h-11 items-center justify-center gap-1.5 rounded-[14px] border border-[#D7E0D8] bg-[#E4ECE3] text-[12px] font-bold text-[#46685C] transition hover:bg-[#D7E0D8] active:scale-95"
                   >
                     <Sparkles aria-hidden="true" size={15} />
                     스타일러
