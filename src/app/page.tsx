@@ -485,28 +485,38 @@ function brandLogoFor(item: ClothingItem) {
     : null;
 }
 
-function BrandLogoMark({ item }: { item: ClothingItem }) {
+function BrandTitleMark({ item }: { item: ClothingItem }) {
   const [logoFailed, setLogoFailed] = useState(false);
   const logo = brandLogoFor(item);
+  const fallbackMark = brandMarkFor(item).slice(0, 2);
 
   if (logo && !logoFailed) {
     return (
-      <Image
-        src={logo.src}
-        alt={`${logo.label} 로고`}
-        width={144}
-        height={48}
-        className="h-auto max-h-12 w-auto max-w-36 object-contain"
-        loading="lazy"
-        unoptimized
-        onError={() => setLogoFailed(true)}
-      />
+      <span
+        className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#D7E0D8] p-1.5"
+        title={`${logo.label} 로고`}
+      >
+        <Image
+          src={logo.src}
+          alt=""
+          width={20}
+          height={20}
+          className="h-full w-full object-contain"
+          loading="lazy"
+          unoptimized
+          onError={() => setLogoFailed(true)}
+        />
+      </span>
     );
   }
 
   return (
-    <span className="break-words text-[28px] font-bold leading-8">
-      {brandMarkFor(item)}
+    <span
+      className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#D7E0D8] text-[9px] font-extrabold leading-none text-[#46685C]"
+      aria-label={`${fallbackMark} 브랜드 마크`}
+      title={`${fallbackMark} 브랜드 마크`}
+    >
+      {fallbackMark}
     </span>
   );
 }
@@ -629,6 +639,14 @@ function loadStoredItems() {
   } catch {
     return seedItems;
   }
+}
+
+function loadStoredLogCount() {
+  const storedCount =
+    window.localStorage.getItem(countStorageKey) ??
+    window.localStorage.getItem(legacyCountStorageKey);
+
+  return storedCount ? Number(storedCount) : 0;
 }
 
 function matchScore(item: ClothingItem, text: string) {
@@ -779,17 +797,12 @@ function sortedItems(items: ClothingItem[], sortMode: SortMode) {
 }
 
 export default function Home() {
-  const [items, setItems] = useState<ClothingItem[]>(() => {
-    if (typeof window === "undefined") {
-      return seedItems;
-    }
-
-    return loadStoredItems();
-  });
+  const [items, setItems] = useState<ClothingItem[]>(seedItems);
   const [filter, setFilter] = useState<"all" | "needsCare" | "fresh">("all");
   const [brandFilter, setBrandFilter] = useState("all");
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [sortMode, setSortMode] = useState<SortMode>("careFirst");
+  const [storageReady, setStorageReady] = useState(false);
   const [newName, setNewName] = useState("");
   const [newBrand, setNewBrand] = useState("");
   const [newColor, setNewColor] = useState("");
@@ -804,21 +817,36 @@ export default function Home() {
   const [feedback, setFeedback] = useState(
     "예: 오늘 나이키 러닝 반팔 검정 M 입었어",
   );
-  const [todayLogCount, setTodayLogCount] = useState(() => {
-    if (typeof window === "undefined") {
-      return 0;
-    }
-
-    const storedCount =
-      window.localStorage.getItem(countStorageKey) ??
-      window.localStorage.getItem(legacyCountStorageKey);
-    return storedCount ? Number(storedCount) : 0;
-  });
+  const [todayLogCount, setTodayLogCount] = useState(0);
 
   useEffect(() => {
+    let active = true;
+    const storedItems = loadStoredItems();
+    const storedLogCount = loadStoredLogCount();
+
+    queueMicrotask(() => {
+      if (!active) {
+        return;
+      }
+
+      setItems(storedItems);
+      setTodayLogCount(storedLogCount);
+      setStorageReady(true);
+    });
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!storageReady) {
+      return;
+    }
+
     window.localStorage.setItem(itemsStorageKey, JSON.stringify(items));
     window.localStorage.setItem(countStorageKey, String(todayLogCount));
-  }, [items, todayLogCount]);
+  }, [items, storageReady, todayLogCount]);
 
   const brandOptions = useMemo(() => optionValues(items, "brand"), [items]);
   const categoryOptions = useMemo(() => optionValues(items, "category"), [items]);
@@ -1350,27 +1378,26 @@ export default function Home() {
                 key={item.id}
                 className="overflow-hidden rounded-[22px] border border-[#E4DFD2] bg-white"
               >
-                <div
-                  className={`mx-4 mt-4 flex min-h-20 items-center justify-between gap-3 rounded-[18px] border px-4 py-3 ${tone.surface} ${tone.border}`}
-                >
-                  <div className="min-w-0">
-                    <p className="text-[12px] font-semibold text-[#5C615D]">
-                      {visual.label}
-                    </p>
-                    <div className="mt-2 flex min-h-12 items-center">
-                      <BrandLogoMark item={item} />
-                    </div>
-                  </div>
-                  <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-[18px] bg-white/80 text-[#1B201D] shadow-sm">
-                    <CategoryIcon aria-hidden="true" size={30} strokeWidth={1.8} />
-                  </div>
-                </div>
-
                 <div className="flex items-start justify-between gap-3 px-4 pt-4">
-                  <div className="min-w-0">
-                    <h2 className="text-[16px] font-bold leading-6 text-[#1B201D]">
-                      {itemTitle(item)}
-                    </h2>
+                  <div
+                    className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-[16px] border ${tone.surface} ${tone.border}`}
+                    aria-label={visual.label}
+                  >
+                    <CategoryIcon
+                      aria-hidden="true"
+                      className={tone.metric}
+                      size={27}
+                      strokeWidth={1.8}
+                    />
+                  </div>
+
+                  <div className="min-w-0 flex-1">
+                    <div className="flex min-w-0 items-center gap-2">
+                      <BrandTitleMark item={item} />
+                      <h2 className="min-w-0 truncate text-[16px] font-bold leading-6 text-[#1B201D]">
+                        {itemTitle(item)}
+                      </h2>
+                    </div>
                     <p className="mt-0.5 text-[12px] font-medium text-[#5C615D]">
                       {itemDetailParts(item).join(" · ") || "구분 정보 미입력"}
                     </p>
