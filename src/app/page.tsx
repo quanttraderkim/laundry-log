@@ -43,6 +43,7 @@ type ClothingItem = {
   careProfile: CareProfile;
   washedAt: string;
   wornAt?: string;
+  styledAt?: string;
   maintainedAt?: string;
   wearCount: number;
   flags: ConditionFlag[];
@@ -607,6 +608,7 @@ function normalizeItem(item: Partial<ClothingItem>, index: number): ClothingItem
     careProfile: profileFor(category, material),
     washedAt: item.washedAt ?? todayText,
     wornAt: item.wornAt ?? (wearCount > 0 ? todayText : undefined),
+    styledAt: item.styledAt,
     maintainedAt: item.maintainedAt,
     wearCount,
     flags,
@@ -730,6 +732,10 @@ function conditionFlagsFromText(text: string) {
 function actionFromText(text: string) {
   if (text.includes("세탁") || text.includes("빨")) {
     return "wash";
+  }
+
+  if (text.includes("스타일러")) {
+    return "style";
   }
 
   if (text.includes("입") || text.includes("착용") || text.includes("신")) {
@@ -896,6 +902,16 @@ export default function Home() {
     setFeedback(`${source} 기록 완료 · 세탁 기준 초기화`);
   }
 
+  function markStyled(id: number, source = "버튼") {
+    setItems((current) =>
+      current.map((item) =>
+        item.id === id ? { ...item, styledAt: todayText } : item,
+      ),
+    );
+    setTodayLogCount((count) => count + 1);
+    setFeedback(`${source} 기록 완료 · 스타일러 날짜 업데이트`);
+  }
+
   function addWear(id: number, flags: ConditionFlag[] = [], source = "버튼") {
     setItems((current) =>
       current.map((item) =>
@@ -957,6 +973,12 @@ export default function Home() {
 
     if (action === "wash") {
       markWashed(item.id, source);
+      setQuickLog("");
+      return;
+    }
+
+    if (action === "style") {
+      markStyled(item.id, source);
       setQuickLog("");
       return;
     }
@@ -1449,6 +1471,12 @@ export default function Home() {
                   </div>
                 </div>
 
+                {item.styledAt ? (
+                  <p className="mx-4 mt-2 rounded-[12px] bg-[#E4ECE3] px-3 py-2 text-[12px] font-medium text-[#46685C]">
+                    마지막 스타일러 {calendarDateSummary(item.styledAt)}
+                  </p>
+                ) : null}
+
                 {item.maintainedAt ? (
                   <p className="mx-4 mt-2 rounded-[12px] bg-[#DAE4EA] px-3 py-2 text-[12px] font-medium text-[#5E7E92]">
                     마지막 관리 {calendarDateSummary(item.maintainedAt)}
@@ -1484,21 +1512,29 @@ export default function Home() {
                   })}
                 </div>
 
-                <div className="grid grid-cols-2 gap-2 p-4">
+                <div className="grid grid-cols-3 gap-2 p-4">
                   <button
                     type="button"
                     onClick={() => addWear(item.id)}
-                    className="flex h-11 items-center justify-center gap-2 rounded-[14px] border border-[#E4DFD2] text-[14px] font-bold text-[#1B201D] transition hover:bg-[#FAF6EE] active:scale-95"
+                    className="flex h-11 items-center justify-center gap-1.5 rounded-[14px] border border-[#E4DFD2] text-[12px] font-bold text-[#1B201D] transition hover:bg-[#FAF6EE] active:scale-95"
                   >
-                    <Clock3 aria-hidden="true" size={16} />
-                    오늘 입었어요
+                    <Clock3 aria-hidden="true" size={15} />
+                    오늘 입음
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => markStyled(item.id)}
+                    className="flex h-11 items-center justify-center gap-1.5 rounded-[14px] border border-[#D7E0D8] bg-[#E4ECE3] text-[12px] font-bold text-[#46685C] transition hover:bg-[#D7E0D8] active:scale-95"
+                  >
+                    <Sparkles aria-hidden="true" size={15} />
+                    스타일러
                   </button>
                   <button
                     type="button"
                     onClick={() => markWashed(item.id)}
-                    className="flex h-11 items-center justify-center gap-2 rounded-[14px] bg-[#1B201D] text-[14px] font-bold text-white transition active:scale-95"
+                    className="flex h-11 items-center justify-center gap-1.5 rounded-[14px] bg-[#1B201D] text-[12px] font-bold text-white transition active:scale-95"
                   >
-                    <CheckCircle2 aria-hidden="true" size={16} />
+                    <CheckCircle2 aria-hidden="true" size={15} />
                     세탁 완료
                   </button>
                 </div>
