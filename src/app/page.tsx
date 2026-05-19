@@ -35,6 +35,7 @@ type ClothingItem = {
   material: string;
   careProfile: CareProfile;
   washedAt: string;
+  wornAt?: string;
   maintainedAt?: string;
   wearCount: number;
   flags: ConditionFlag[];
@@ -75,6 +76,7 @@ const seedItems: ClothingItem[] = [
     material: "폴리에스터",
     careProfile: "active_synthetic",
     washedAt: "2026-05-18",
+    wornAt: "2026-05-19",
     wearCount: 1,
     flags: ["sweat"],
   },
@@ -103,6 +105,7 @@ const seedItems: ClothingItem[] = [
     material: "면",
     careProfile: "cotton_top",
     washedAt: "2026-05-18",
+    wornAt: "2026-05-18",
     wearCount: 1,
     flags: [],
   },
@@ -117,6 +120,7 @@ const seedItems: ClothingItem[] = [
     material: "울",
     careProfile: "wool_delicate",
     washedAt: "2026-05-05",
+    wornAt: "2026-05-18",
     maintainedAt: "2026-05-18",
     wearCount: 1,
     flags: [],
@@ -132,6 +136,7 @@ const seedItems: ClothingItem[] = [
     material: "데님",
     careProfile: "denim",
     washedAt: "2026-05-10",
+    wornAt: "2026-05-18",
     wearCount: 3,
     flags: [],
   },
@@ -147,6 +152,30 @@ function daysSince(date?: string) {
     0,
     Math.floor((today.getTime() - targetDate.getTime()) / 86_400_000),
   );
+}
+
+function calendarDate(date?: string) {
+  return date ? date.replace(/-/g, ".") : "기록 없음";
+}
+
+function relativeDate(date?: string) {
+  const days = daysSince(date);
+
+  if (days === null) {
+    return null;
+  }
+
+  if (days === 0) {
+    return "오늘";
+  }
+
+  return `${days}일 전`;
+}
+
+function calendarDateSummary(date?: string) {
+  const relative = relativeDate(date);
+
+  return relative ? `${calendarDate(date)} · ${relative}` : calendarDate(date);
 }
 
 function statusFor(item: ClothingItem): Status {
@@ -299,6 +328,7 @@ function isConditionFlag(value: string): value is ConditionFlag {
 function normalizeItem(item: Partial<ClothingItem>, index: number): ClothingItem {
   const category = cleanText(item.category) || "상의";
   const material = cleanText(item.material) || "면";
+  const wearCount = typeof item.wearCount === "number" ? item.wearCount : 0;
   const flags = Array.isArray(item.flags)
     ? item.flags.filter((flag): flag is ConditionFlag => isConditionFlag(flag))
     : [];
@@ -314,8 +344,9 @@ function normalizeItem(item: Partial<ClothingItem>, index: number): ClothingItem
     material,
     careProfile: item.careProfile ?? profileFor(category, material),
     washedAt: item.washedAt ?? todayText,
+    wornAt: item.wornAt ?? (wearCount > 0 ? todayText : undefined),
     maintainedAt: item.maintainedAt,
-    wearCount: typeof item.wearCount === "number" ? item.wearCount : 0,
+    wearCount,
     flags,
   };
 }
@@ -467,6 +498,7 @@ export default function Home() {
         item.id === id
           ? {
               ...item,
+              wornAt: todayText,
               wearCount: item.wearCount + 1,
               flags: Array.from(new Set([...item.flags, ...flags])),
             }
@@ -729,8 +761,6 @@ export default function Home() {
         <section className="mt-4 flex flex-1 flex-col gap-3 pb-6">
           {filteredItems.map((item) => {
             const currentStatus = statusFor(item);
-            const laundryDays = daysSince(item.washedAt) ?? 0;
-            const maintenanceDays = daysSince(item.maintainedAt);
 
             return (
               <article
@@ -767,12 +797,13 @@ export default function Home() {
                   <p className="text-sm font-semibold text-zinc-800">
                     {currentStatus.reason}
                   </p>
-                  <p className="mt-1 text-xs font-medium text-zinc-500">
-                    세탁 {laundryDays}일 전
-                    {maintenanceDays !== null
-                      ? ` · 관리 ${maintenanceDays}일 전`
-                      : ""}
-                  </p>
+                  <div className="mt-1 grid gap-0.5 text-xs font-medium text-zinc-500">
+                    <p>마지막 착용 {calendarDateSummary(item.wornAt)}</p>
+                    <p>마지막 세탁 {calendarDateSummary(item.washedAt)}</p>
+                    {item.maintainedAt ? (
+                      <p>마지막 관리 {calendarDateSummary(item.maintainedAt)}</p>
+                    ) : null}
+                  </div>
                 </div>
 
                 <div className="mt-3 grid grid-cols-3 gap-2">
