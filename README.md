@@ -25,17 +25,19 @@ npm run dev
 
 | 문서 | 용도 |
 |---|---|
+| [PRD](docs/PRD.md) | 해커톤 합의본 제품 요구사항 |
 | [Product Brief](docs/PRODUCT_BRIEF.md) | 서비스 목적, MVP, 우선순위 |
 | [Database Decision](docs/DATABASE_DECISION.md) | DB 선택 기준과 초안 스키마 |
 | [Collaboration Guide](CONTRIBUTING.md) | 브랜치, PR, PRD 취합 룰 |
 
 ## PRD 취합 방식
 
-팀원 2명의 PRD는 `docs/prd/raw/`에 원문으로 넣고, 합의된 내용만 `docs/PRODUCT_BRIEF.md`와 추후 `docs/PRD.md`에 반영합니다. 중복 설명은 한 곳에만 남기고, 판단이 필요한 내용은 `결정 필요`로 표시합니다.
+팀원 2명의 PRD는 `docs/prd/raw/`에 원문으로 넣고, 합의된 내용만 `docs/PRD.md`와 `docs/PRODUCT_BRIEF.md`에 반영합니다. 중복 설명은 한 곳에만 남기고, 판단이 필요한 내용은 `결정 필요`로 표시합니다.
 
 ## 다음 액션
 
 1. 팀원 PRD 2개 수집
 2. 공통 요구사항과 충돌 요구사항 분리
 3. Supabase 프로젝트 생성 여부 결정
-4. 인증 없이 단일 사용자 MVP를 먼저 완성한 뒤 공유/가족 단위 기능 확장
+4. 소재별 세탁 권장 규칙을 UI와 데이터 모델에 반영
+5. 인증 없이 단일 사용자 MVP를 먼저 완성한 뒤 공유/가족 단위 기능 확장
