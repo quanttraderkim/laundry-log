@@ -5,6 +5,9 @@ import { fileURLToPath } from "node:url";
 const projectRoot = dirname(fileURLToPath(import.meta.url));
 
 const nextConfig: NextConfig = {
+  images: {
+    remotePatterns: [new URL("https://cdn.simpleicons.org/**")],
+  },
   turbopack: {
     root: projectRoot,
   },

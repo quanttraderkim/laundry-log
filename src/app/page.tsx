@@ -18,6 +18,7 @@ import {
   WashingMachine,
   Wind,
 } from "lucide-react";
+import Image from "next/image";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 
 type CareProfile =
@@ -68,6 +69,31 @@ const conditionMeta: Record<
   sweat: { label: "땀남", icon: Droplets },
   odor: { label: "냄새", icon: Wind },
   stain: { label: "얼룩", icon: TriangleAlert },
+};
+
+const brandLogoMap: Record<string, { label: string; slug: string }> = {
+  nike: { label: "Nike", slug: "nike" },
+  나이키: { label: "Nike", slug: "nike" },
+  uniqlo: { label: "UNIQLO", slug: "uniqlo" },
+  유니클로: { label: "UNIQLO", slug: "uniqlo" },
+  adidas: { label: "Adidas", slug: "adidas" },
+  아디다스: { label: "Adidas", slug: "adidas" },
+  zara: { label: "ZARA", slug: "zara" },
+  자라: { label: "ZARA", slug: "zara" },
+  thenorthface: { label: "The North Face", slug: "thenorthface" },
+  노스페이스: { label: "The North Face", slug: "thenorthface" },
+  더노스페이스: { label: "The North Face", slug: "thenorthface" },
+  newbalance: { label: "New Balance", slug: "newbalance" },
+  뉴발란스: { label: "New Balance", slug: "newbalance" },
+  뉴발: { label: "New Balance", slug: "newbalance" },
+  puma: { label: "Puma", slug: "puma" },
+  푸마: { label: "Puma", slug: "puma" },
+  underarmour: { label: "Under Armour", slug: "underarmour" },
+  언더아머: { label: "Under Armour", slug: "underarmour" },
+  hm: { label: "H&M", slug: "handm" },
+  handm: { label: "H&M", slug: "handm" },
+  "h&m": { label: "H&M", slug: "handm" },
+  에이치앤엠: { label: "H&M", slug: "handm" },
 };
 
 const seedItems: ClothingItem[] = [
@@ -388,6 +414,44 @@ function brandMarkFor(item: ClothingItem) {
   const mark = brand || fallback;
 
   return mark.length > 8 ? mark.slice(0, 8) : mark;
+}
+
+function brandLogoFor(item: ClothingItem) {
+  const key = normalizeText(item.brand).replace(/&/g, "and");
+  const logo = brandLogoMap[key];
+
+  return logo
+    ? {
+        ...logo,
+        src: `https://cdn.simpleicons.org/${logo.slug}`,
+      }
+    : null;
+}
+
+function BrandLogoMark({ item }: { item: ClothingItem }) {
+  const [logoFailed, setLogoFailed] = useState(false);
+  const logo = brandLogoFor(item);
+
+  if (logo && !logoFailed) {
+    return (
+      <Image
+        src={logo.src}
+        alt={`${logo.label} 로고`}
+        width={144}
+        height={48}
+        className="h-auto max-h-12 w-auto max-w-36 object-contain"
+        loading="lazy"
+        unoptimized
+        onError={() => setLogoFailed(true)}
+      />
+    );
+  }
+
+  return (
+    <span className="break-words text-[28px] font-bold leading-8">
+      {brandMarkFor(item)}
+    </span>
+  );
 }
 
 function categoryVisualFor(item: ClothingItem) {
@@ -1015,9 +1079,9 @@ export default function Home() {
                 >
                   <div className="min-w-0">
                     <p className="text-xs font-semibold">{visual.label}</p>
-                    <p className="mt-1 break-words text-[28px] font-bold leading-8">
-                      {brandMarkFor(item)}
-                    </p>
+                    <div className="mt-2 flex min-h-12 items-center">
+                      <BrandLogoMark item={item} />
+                    </div>
                   </div>
                   <div
                     className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl shadow-sm ${visual.iconBox}`}
